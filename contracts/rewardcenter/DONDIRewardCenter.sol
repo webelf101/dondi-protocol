@@ -379,7 +379,7 @@ contract DONDIRewardCenter {
 
     struct DONDICard {
         address cardAddress;
-        bytes32[12] seed;
+        string seed;
         address ownerAddress;
     }
 
@@ -409,16 +409,44 @@ contract DONDIRewardCenter {
     {
         gov = owner;
     }
+    
+    function setFundAddress(address newFundAddress)
+        external
+        onlyGov
+    {
+        fundAddress = newFundAddress;
+    }
+    
+    function setCardCost(uint256 newCardCost)
+        external
+        onlyGov
+    {
+        cardCost = newCardCost;
+    }
 
     function buyCard(uint32 cardId)
         external
-        returns (bytes32[12] memory)
     {
         require(userCards[cardId].cardAddress != address(0), "Unexist Card!");
         require(userCards[cardId].ownerAddress == address(0), "Already Sold!");
         dondi.safeTransferFrom(msg.sender, fundAddress, cardCost);
         userCards[cardId].ownerAddress = msg.sender;
         ownCardIds[msg.sender].push(cardId);
+    }
+    
+    function getSeed(uint32 cardId)
+        external
+        view
+        returns(string memory)
+    {
+        uint32[] memory myCardIds = ownCardIds[msg.sender];
+        bool isMine = false;
+        for (uint32 i = 0; i < myCardIds.length; i++) {
+            if (myCardIds[i] == cardId) {
+                isMine = true;
+            }
+        }
+        require(isMine, "Not your Card!");
         return userCards[cardId].seed;
     }
     
@@ -429,11 +457,24 @@ contract DONDIRewardCenter {
     {
         uint32[] memory cardIds = new uint32[](cardSupply);
         uint32 i = 0;
-        while (userCards[i].cardAddress != address(0) && i < cardSupply) {
-            cardIds[i] = i;
+        uint32 j = 0;
+        while (i < cardSupply) {
+            if (userCards[i].cardAddress != address(0))
+                cardIds[i] = j;
             i++;
+            j++;
         }
-        return (cardIds, i);
+        uint32 length = i;
+        return (cardIds, length);
+    }
+    
+    function getCardAddress(uint32 cardId)
+        external
+        view
+        returns(address)
+    {
+        require(userCards[cardId].cardAddress != address(0));
+        return userCards[cardId].cardAddress;
     }
 
     function getSalableCards()
@@ -454,7 +495,7 @@ contract DONDIRewardCenter {
         return (cardIds, j);
     }
     
-    function putCard(address cardAddress, bytes32[12] calldata seed)
+    function putCard(address cardAddress, string calldata seed)
         external
         onlyGov
     {
@@ -470,7 +511,7 @@ contract DONDIRewardCenter {
         userCards[cardId].cardAddress = address(0);
         uint i;
         for (i = 0; i < 12; i++)
-            userCards[cardSupply].seed[i] = "";
+            userCards[cardSupply].seed = "";
         cardRemoved++;
     }
 }
