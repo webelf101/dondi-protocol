@@ -376,9 +376,9 @@ library SafeERC20 {
 contract DONDIRewardCenter {
     using SafeERC20 for IERC20;
 
-    IERC20 public dondi = IERC20(0x7a86c420e3926BD49fdce828AdC5bC881e0eACfA);
+    IERC20 public dondi = IERC20(0x45Ed25A237B6AB95cE69aF7555CF8D7A2FfEE67c);
     
-    address public fundAddress = address(0x875d57D6022060A6A61863A94B3C1dBEbEF06197);
+    address public fundAddress = address(0x32Ddc840B06D15f16713DEfbE29187c060641214);
     uint256 public cardCost = 500 * 10**18;
     uint32 public cardSupply = 0;
     address gov;
@@ -419,6 +419,7 @@ contract DONDIRewardCenter {
     function buyCard(uint32 cardId)
         external
     {
+        require(cardId < cardSupply, "Card Not Exist!");
         require(cardOwners[cardId] == address(0), "Already Sold!");
         dondi.safeTransferFrom(msg.sender, fundAddress, cardCost);
         cardOwners[cardId] = msg.sender;
