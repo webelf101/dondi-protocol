@@ -373,18 +373,26 @@ library SafeERC20 {
 }
 
 
+
 contract DONDIRewardCenter {
     using SafeERC20 for IERC20;
 
-    IERC20 public dondi = IERC20(0x7a86c420e3926BD49fdce828AdC5bC881e0eACfA);
+    struct DONDICard {
+        address cardAddress;
+        string seed;
+        address ownerAddress;
+    }
+
+    IERC20 dondi = IERC20(0x7a86c420e3926BD49fdce828AdC5bC881e0eACfA);
     
-    address public fundAddress = address(0x875d57D6022060A6A61863A94B3C1dBEbEF06197);
-    uint256 public cardCost = 500 * 10**18;
-    uint32 public cardSupply = 0;
+    address fundAddress = address(0x875d57D6022060A6A61863A94B3C1dBEbEF06197);
+    uint256 cardCost = 500 * 10**18;
+    uint32 cardSupply = 0;
+    uint32 cardRemoved = 0;
     address gov;
 
-    mapping(uint32 => address) private cardOwners;
-    mapping(address => uint32[]) private ownCardIds;
+    mapping(uint32 => DONDICard) private userCards;
+    mapping(address => uint32[]) ownCardIds;
     
     constructor () public {
         gov = msg.sender;
@@ -419,49 +427,84 @@ contract DONDIRewardCenter {
     function buyCard(uint32 cardId)
         external
     {
-        require(cardOwners[cardId] == address(0), "Already Sold!");
+        require(userCards[cardId].cardAddress != address(0), "Unexist Card!");
+        require(userCards[cardId].ownerAddress == address(0), "Already Sold!");
         dondi.safeTransferFrom(msg.sender, fundAddress, cardCost);
-        cardOwners[cardId] = msg.sender;
+        userCards[cardId].ownerAddress = msg.sender;
         ownCardIds[msg.sender].push(cardId);
     }
-
-    function getSalableCardIds()
+    
+    function getSeed(uint32 cardId)
+        external
+        view
+        returns(string memory)
+    {
+        require(address(userCards[cardId].ownerAddress) == address(msg.sender),  "Not your Card!");
+        return userCards[cardId].seed;
+    }
+    
+    function getAllCards()
         external
         view
         returns(uint32[] memory, uint32)
     {
         uint32[] memory cardIds = new uint32[](cardSupply);
-        uint32 i;
-        uint32 length = 0;
-        for (i = 0; i < cardSupply; i++) {
-            if (cardOwners[i] == address(0)) {
-                cardIds[length] = i;
-                length++;
-            }
+        uint32 i = 0;
+        uint32 j = 0;
+        while (i < cardSupply) {
+            if (userCards[i].cardAddress != address(0))
+                cardIds[i] = j;
+            i++;
+            j++;
         }
+        uint32 length = i;
         return (cardIds, length);
     }
     
-    function setCardSupply(uint32 newSupply)
+    function getCardAddress(uint32 cardId)
+        external
+        view
+        returns(address)
+    {
+        require(userCards[cardId].cardAddress != address(0));
+        return userCards[cardId].cardAddress;
+    }
+
+    function getSalableCards()
+        external
+        view
+        returns(uint32[] memory, uint32)
+    {
+        uint32[] memory cardIds = new uint32[](cardSupply);
+        uint32 i = 0;
+        uint32 j = 0;
+        while (userCards[i].cardAddress != address(0) && i < cardSupply) {
+            if (userCards[i].ownerAddress == address(0)) {
+                cardIds[j] = i;
+                j++;
+            }
+            i++;
+        }
+        return (cardIds, j);
+    }
+    
+    function putCard(address cardAddress, string calldata seed)
         external
         onlyGov
     {
-        cardSupply = newSupply;
+        userCards[cardSupply].cardAddress = cardAddress;
+        userCards[cardSupply].seed = seed;
+        cardSupply++;
     }
-
-    function getOwnCardIds(address cardOwner)
+    
+    function removeCard(uint32 cardId)
         external
-        view
-        returns (uint32[] memory, uint32)
+        onlyGov
     {
-        return (ownCardIds[cardOwner], uint32(ownCardIds[cardOwner].length));
-    }
-
-    function getCardOwner(uint32 cardId)
-        external
-        view
-        returns (address)
-    {
-        return cardOwners[cardId];
+        userCards[cardId].cardAddress = address(0);
+        uint i;
+        for (i = 0; i < 12; i++)
+            userCards[cardSupply].seed = "";
+        cardRemoved++;
     }
 }
