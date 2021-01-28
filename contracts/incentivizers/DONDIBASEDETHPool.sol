@@ -610,16 +610,16 @@ contract LPTokenWrapper {
 
 contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
     // new
-    struct MyAction {	
-        mapping(uint32 => uint256) amount;	
-        mapping(uint32 => uint256) time;	
-        uint32 length;	
+    struct MyAction {
+        mapping(uint32 => uint256) amount;
+        mapping(uint32 => uint256) time;
+        uint32 length;
     }
 
     IERC20 public dondi = IERC20(0x45Ed25A237B6AB95cE69aF7555CF8D7A2FfEE67c);       // need to update address
     DONDIAirdrop public airdrop = DONDIAirdrop(0xbd1A31ac12Cd16bacE58519c91a4562069d5A6A6);        // need to update address
 
-    uint256 public constant DURATION = 5184000; // 60 days	
+    uint256 public constant DURATION = 5184000; // 60 days
     uint256 public initreward = 625 * 10 ** 3 * 10**18; // 625K
 
     uint256 public starttime = 1604102400; // 2020-10-31 12:00:00 AM (UTC UTC +00:00)
@@ -629,8 +629,8 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
     uint256 public rewardPerTokenStored;
 
     // new
-    mapping(address => MyAction) private stakes;	
-    mapping(address => MyAction) private withdraws;	
+    mapping(address => MyAction) private stakes;
+    mapping(address => MyAction) private withdraws;
     mapping(address => MyAction) private boosts;
 
     mapping(address => uint256) public boostStarttime;
@@ -649,7 +649,7 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
     event RewardPaid(address indexed user, uint256 reward);
 
     modifier checkBoostStatus() {
-        require(block.timestamp >= boostStarttime[msg.sender] + 1 hours, "already boost");
+        require(block.timestamp >= boostStarttime[msg.sender].add(1 hours), "already boost");
         _;
     }
 
@@ -658,17 +658,17 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
         _;
     }
 
-    modifier checkhalve() {	
-        if (block.timestamp >= periodFinish) {	
-            initreward = initreward.mul(50).div(100);	
-            uint256 scalingFactor = DONDI(address(dondi)).dondisScalingFactor();	
-            uint256 newRewards = initreward.mul(scalingFactor).div(10**18);	
-            dondi.mint(address(this), newRewards);	
-            rewardRate = initreward.div(DURATION);	
-            periodFinish = block.timestamp.add(DURATION);	
-            emit RewardAdded(initreward);	
-        }	
-        _;	
+    modifier checkhalve() {
+        if (block.timestamp >= periodFinish) {
+            initreward = initreward.mul(50).div(100);
+            uint256 scalingFactor = DONDI(address(dondi)).dondisScalingFactor();
+            uint256 newRewards = initreward.mul(scalingFactor).div(10**18);
+            dondi.mint(address(this), newRewards);
+            rewardRate = initreward.div(DURATION);
+            periodFinish = block.timestamp.add(DURATION);
+            emit RewardAdded(initreward);
+        }
+        _;
     }
 
     modifier updateReward(address account) {
@@ -713,8 +713,8 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
         super.stake(amount);
 
         // new
-        stakes[msg.sender].amount[stakes[msg.sender].length] = amount;	
-        stakes[msg.sender].time[stakes[msg.sender].length] = now;	
+        stakes[msg.sender].amount[stakes[msg.sender].length] = amount;
+        stakes[msg.sender].time[stakes[msg.sender].length] = block.timestamp;
         stakes[msg.sender].length++;
 
         emit Staked(msg.sender, amount);
@@ -725,8 +725,8 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
         super.withdraw(amount);
 
         // new
-        withdraws[msg.sender].amount[withdraws[msg.sender].length] = amount;	
-        withdraws[msg.sender].time[withdraws[msg.sender].length] = now;	
+        withdraws[msg.sender].amount[withdraws[msg.sender].length] = amount;
+        withdraws[msg.sender].time[withdraws[msg.sender].length] = block.timestamp;
         withdraws[msg.sender].length++;
 
         emit Withdrawn(msg.sender, amount);
@@ -738,133 +738,132 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
     }
 
     // new
-    function getBoostReward(uint256 trueReward) private view returns(uint256){	
-        uint256 additionTime = 0;	
-        uint256 startTime = stakes[msg.sender].time[0];	
-        uint256 boostReward = 0;	
-        uint256 fullAmount = 0;	
-        uint32 i;	
-        uint32 j;	
-        for (i = 0; i < stakes[msg.sender].length; i++) {	
-            additionTime = 0;	
-            uint256 stakeTime = stakes[msg.sender].time[i];	
-            for (j = 0; j < boosts[msg.sender].length; j++) {	
-                uint256 boostTime = boosts[msg.sender].time[j];	
-                uint256 boostAmount = boosts[msg.sender].amount[j];	
-                if (boostTime < stakeTime && boostTime + 1 hours < stakeTime) {	
-                    if (boostTime.add(1 hours) > now) {	
-                        additionTime = additionTime.add(uint256(uint256(now).sub(stakeTime)).mul(boostAmount - 1));	
-                    } else {	
-                        additionTime = additionTime.add(uint256(boostTime.add(1 hours).sub(stakeTime)).mul(boostAmount - 1));	
-                    }	
-                } else if (boostTime > stakeTime) {	
-                    if (boostTime.add(1 hours) > now) {	
-                        additionTime = additionTime.add(uint256(uint256(now).sub(boostTime)).mul(boostAmount - 1));	
-                    } else {	
-                        additionTime = additionTime.add(uint256(1 hours).mul(boostAmount - 1));	
-                    }	
-                }	
-            }	
-            if (balanceOf(msg.sender) > 0) {	
-                fullAmount = balanceOf(msg.sender);	
-            } else {	
-                fullAmount = withdraws[msg.sender].amount[withdraws[msg.sender].length - 1];	
-            }	
-            uint256 addReward = trueReward.mul(stakes[msg.sender].amount[i]).div(fullAmount);	
-            addReward = addReward.mul(additionTime).div(uint256(now).sub(startTime));	
-            boostReward = boostReward.add(addReward);	
-        }	
-        if (withdraws[msg.sender].length > 0) {	
-            for (i = 0; i < withdraws[msg.sender].length; i++) {	
-                additionTime = 0;	
-                uint256 withdrawTime = withdraws[msg.sender].time[i];	
-                for (j = 0; j < boosts[msg.sender].length; j++) {	
-                    uint256 boostTime = boosts[msg.sender].time[j];	
-                    uint256 boostAmount = boosts[msg.sender].amount[j];	
-                    if (boostTime < withdrawTime && boostTime + 1 hours < withdrawTime) {	
-                        if (boostTime.add(1 hours) > now) {	
-                            additionTime = additionTime.add(uint256(uint256(now).sub(withdrawTime)).mul(boostAmount - 1));	
-                        } else {	
-                            additionTime = additionTime.add(uint256(boostTime.add(1 hours).sub(withdrawTime)).mul(boostAmount - 1));	
-                        }	
-                    } else if (boostTime > withdrawTime) {	
-                        if (boostTime.add(1 hours) > now) {	
-                            additionTime = additionTime.add(uint256(uint256(now).sub(boostTime)).mul(boostAmount - 1));	
-                        } else {	
-                            additionTime = additionTime.add(uint256(1 hours).mul(boostAmount - 1));	
-                        }	
-                    }	
-                }	
-                if (balanceOf(msg.sender) > 0) {	
-                    fullAmount = balanceOf(msg.sender);	
-                } else {	
-                    fullAmount = withdraws[msg.sender].amount[withdraws[msg.sender].length - 1];	
-                }	
-                uint256 subReward = trueReward.mul(withdraws[msg.sender].amount[i]).div(fullAmount);	
-                subReward = subReward.mul(additionTime).div(uint256(now).sub(startTime));	
-                boostReward = boostReward.sub(subReward);	
-            }	
-        }	
-        return boostReward;	
+    function getBoostReward(uint256 trueReward) private view returns(uint256){
+        uint256 additionTime = 0;
+        uint256 startTime = stakes[msg.sender].time[0];
+        uint256 boostReward = 0;
+        uint256 fullAmount = 0;
+        uint32 i;
+        uint32 j;
+        for (i = 0; i < stakes[msg.sender].length; i++) {
+            additionTime = 0;
+            uint256 stakeTime = stakes[msg.sender].time[i];
+            for (j = 0; j < boosts[msg.sender].length; j++) {
+                uint256 boostTime = boosts[msg.sender].time[j];
+                uint256 boostAmount = boosts[msg.sender].amount[j];
+                if (boostTime < stakeTime && stakeTime < boostTime.add(1 hours)) {// if (boostTime < stakeTime && boostTime + 1 hours < stakeTime) {
+                    if (block.timestamp < boostTime.add(1 hours)) {
+                        additionTime = additionTime.add(uint256(uint256(block.timestamp).sub(stakeTime)).mul(boostAmount - 1));
+                    } else {
+                        additionTime = additionTime.add(uint256(boostTime.add(1 hours).sub(stakeTime)).mul(boostAmount - 1));
+                    }
+                } else if (stakeTime < boostTime) {
+                    if (block.timestamp < boostTime.add(1 hours)) {
+                        additionTime = additionTime.add(uint256(uint256(block.timestamp).sub(boostTime)).mul(boostAmount - 1));
+                    } else {
+                        additionTime = additionTime.add(uint256(1 hours).mul(boostAmount - 1));
+                    }
+                }
+            }
+            if (balanceOf(msg.sender) > 0) {
+                fullAmount = balanceOf(msg.sender);
+            } else {
+                fullAmount = withdraws[msg.sender].amount[withdraws[msg.sender].length - 1];
+            }
+            uint256 addReward = trueReward.mul(stakes[msg.sender].amount[i]).div(fullAmount);
+            addReward = addReward.mul(additionTime).div(uint256(block.timestamp).sub(startTime));
+            boostReward = boostReward.add(addReward);
+        }
+        if (withdraws[msg.sender].length > 0) {
+            for (i = 0; i < withdraws[msg.sender].length; i++) {
+                additionTime = 0;
+                uint256 withdrawTime = withdraws[msg.sender].time[i];
+                for (j = 0; j < boosts[msg.sender].length; j++) {
+                    uint256 boostTime = boosts[msg.sender].time[j];
+                    uint256 boostAmount = boosts[msg.sender].amount[j];
+                    if (boostTime < withdrawTime && withdrawTime < boostTime.add(1 hours)) {
+                        if (block.timestamp < boostTime.add(1 hours)) {
+                            additionTime = additionTime.add(uint256(uint256(block.timestamp).sub(withdrawTime)).mul(boostAmount - 1));
+                        } else {
+                            additionTime = additionTime.add(uint256(boostTime.add(1 hours).sub(withdrawTime)).mul(boostAmount - 1));
+                        }
+                    } else if (withdrawTime < boostTime) {
+                        if (block.timestamp < boostTime.add(1 hours)) {
+                            additionTime = additionTime.add(uint256(uint256(block.timestamp).sub(boostTime)).mul(boostAmount - 1));
+                        } else {
+                            additionTime = additionTime.add(uint256(1 hours).mul(boostAmount - 1));
+                        }
+                    }
+                }
+                if (balanceOf(msg.sender) > 0) {
+                    fullAmount = balanceOf(msg.sender);
+                } else {
+                    fullAmount = withdraws[msg.sender].amount[withdraws[msg.sender].length - 1];
+                }
+                uint256 subReward = trueReward.mul(withdraws[msg.sender].amount[i]).div(fullAmount);
+                subReward = subReward.mul(additionTime).div(uint256(block.timestamp).sub(startTime));
+                boostReward = boostReward.sub(subReward);
+            }
+        }
+        return boostReward;
     }
 
     // new
-    function getReward() public updateReward(msg.sender) checkhalve checkStart {	
-        uint256 reward = earned(msg.sender);	
-        if (reward > 0) {	
-            rewards[msg.sender] = 0;	
-            uint256 scalingFactor = DONDI(address(dondi)).dondisScalingFactor();	
-            uint256 trueReward = reward.mul(scalingFactor).div(10**18);	
-            uint256 remainAirdrop = airdrop.getRemainAirdrop(address(this));	
-            if (block.timestamp < boostStarttime[msg.sender] + 1 hours && remainAirdrop > 0) {	
-                	
-                uint256 boostReward = getBoostReward(trueReward);	
-                if (boostReward < remainAirdrop) {	
-                    airdrop.airdrop(boostReward);	
-                    dondi.safeTransfer(msg.sender, trueReward.add(boostReward));	
-                    emit RewardPaid(msg.sender, trueReward.add(boostReward));	
-                }	
-                else {	
-                    airdrop.airdropAll();	
-                    dondi.safeTransfer(msg.sender, trueReward.add(remainAirdrop));	
-                    emit RewardPaid(msg.sender, trueReward.add(remainAirdrop));	
-                }	
-            }	
-            else {	
-                dondi.safeTransfer(msg.sender, trueReward);	
-                emit RewardPaid(msg.sender, trueReward);	
-            }	
-            stakes[msg.sender].amount[0] = balanceOf(msg.sender);	
-            stakes[msg.sender].time[0] = now;	
-            stakes[msg.sender].length = 1;	
-            withdraws[msg.sender].length = 0;	
-        }	
+    function getReward() public updateReward(msg.sender) checkhalve checkStart {
+        uint256 reward = earned(msg.sender);
+        if (reward > 0) {
+            rewards[msg.sender] = 0;
+            uint256 scalingFactor = DONDI(address(dondi)).dondisScalingFactor();
+            uint256 trueReward = reward.mul(scalingFactor).div(10**18);
+            uint256 remainAirdrop = airdrop.getRemainAirdrop(address(this));
+            uint256 boostReward = getBoostReward(trueReward);
+            if (remainAirdrop > 0 && boostReward > 0) {
+                if (boostReward < remainAirdrop) {
+                    airdrop.airdrop(boostReward);
+                    dondi.safeTransfer(msg.sender, trueReward.add(boostReward));
+                    emit RewardPaid(msg.sender, trueReward.add(boostReward));
+                }
+                else {
+                    airdrop.airdropAll();
+                    dondi.safeTransfer(msg.sender, trueReward.add(remainAirdrop));
+                    emit RewardPaid(msg.sender, trueReward.add(remainAirdrop));
+                }
+            }
+            else {
+                dondi.safeTransfer(msg.sender, trueReward);
+                emit RewardPaid(msg.sender, trueReward);
+            }
+            stakes[msg.sender].amount[0] = balanceOf(msg.sender);
+            stakes[msg.sender].time[0] = block.timestamp;
+            stakes[msg.sender].length = 1;
+            withdraws[msg.sender].length = 0;
+        }
     }
 
-    function notifyRewardAmount(uint256 reward)	
-        external	
-        onlyRewardDistribution	
-        updateReward(address(0))	
-    {	
-        if (block.timestamp > starttime) {	
-          if (block.timestamp >= periodFinish) {	
-              rewardRate = reward.div(DURATION);	
-          } else {	
-              uint256 remaining = periodFinish.sub(block.timestamp);	
-              uint256 leftover = remaining.mul(rewardRate);	
-              rewardRate = reward.add(leftover).div(DURATION);	
-          }	
-          lastUpdateTime = block.timestamp;	
-          periodFinish = block.timestamp.add(DURATION);	
-          emit RewardAdded(reward);	
-        } else {	
-          require(dondi.balanceOf(address(this)) == 0, "already initialized");	
-          dondi.mint(address(this), initreward);	
-          rewardRate = initreward.div(DURATION);	
-          lastUpdateTime = starttime;	
-          periodFinish = starttime.add(DURATION);	
-          emit RewardAdded(reward);	
-        }	
+    function notifyRewardAmount(uint256 reward)
+        external
+        onlyRewardDistribution
+        updateReward(address(0))
+    {
+        if (block.timestamp > starttime) {
+          if (block.timestamp >= periodFinish) {
+              rewardRate = reward.div(DURATION);
+          } else {
+              uint256 remaining = periodFinish.sub(block.timestamp);
+              uint256 leftover = remaining.mul(rewardRate);
+              rewardRate = reward.add(leftover).div(DURATION);
+          }
+          lastUpdateTime = block.timestamp;
+          periodFinish = block.timestamp.add(DURATION);
+          emit RewardAdded(reward);
+        } else {
+          require(dondi.balanceOf(address(this)) == 0, "already initialized");
+          dondi.mint(address(this), initreward);
+          rewardRate = initreward.div(DURATION);
+          lastUpdateTime = starttime;
+          periodFinish = starttime.add(DURATION);
+          emit RewardAdded(reward);
+        }
     }
 
     function boostx2() external payable checkBoostStatus checkStart {
@@ -877,8 +876,8 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
         boostStarttime[msg.sender] = block.timestamp;
 
         // new
-        boosts[msg.sender].amount[boosts[msg.sender].length] = 2;	
-        boosts[msg.sender].time[boosts[msg.sender].length] = now;	
+        boosts[msg.sender].amount[boosts[msg.sender].length] = 2;
+        boosts[msg.sender].time[boosts[msg.sender].length] = block.timestamp;
         boosts[msg.sender].length++;
         
         if (!fundaddress.send(boostCost)) {
@@ -896,8 +895,8 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
         boostStarttime[msg.sender] = block.timestamp;
 
         // new
-        boosts[msg.sender].amount[boosts[msg.sender].length] = 4;	
-        boosts[msg.sender].time[boosts[msg.sender].length] = now;	
+        boosts[msg.sender].amount[boosts[msg.sender].length] = 4;
+        boosts[msg.sender].time[boosts[msg.sender].length] = block.timestamp;
         boosts[msg.sender].length++;
         
         if (!fundaddress.send(boostCost)) {
@@ -915,8 +914,8 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
         boostStarttime[msg.sender] = block.timestamp;
 
         // new
-        boosts[msg.sender].amount[boosts[msg.sender].length] = 8;	
-        boosts[msg.sender].time[boosts[msg.sender].length] = now;	
+        boosts[msg.sender].amount[boosts[msg.sender].length] = 8;
+        boosts[msg.sender].time[boosts[msg.sender].length] = block.timestamp;
         boosts[msg.sender].length++;
         
         if (!fundaddress.send(boostCost)) {
@@ -933,8 +932,8 @@ contract DONDIBASEDETHPool is LPTokenWrapper, IRewardDistributionRecipient {
         x10Count[msg.sender] = x10Count[msg.sender] + 1;
         boostStarttime[msg.sender] = block.timestamp;
         // new
-        boosts[msg.sender].amount[boosts[msg.sender].length] = 10;	
-        boosts[msg.sender].time[boosts[msg.sender].length] = now;	
+        boosts[msg.sender].amount[boosts[msg.sender].length] = 10;
+        boosts[msg.sender].time[boosts[msg.sender].length] = block.timestamp;
         boosts[msg.sender].length++;
 
         if (!fundaddress.send(boostCost)) {
